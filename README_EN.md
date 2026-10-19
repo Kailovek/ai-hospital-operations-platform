@@ -53,13 +53,112 @@ flowchart LR
 
 [Module boundaries](docs/modules.md) and [data flows](docs/flows.md) correspond to the published code.
 
-## Design details
+## Core business design
 
-Document ingestion parses supported formats, creates overlapping paragraph chunks, and stores document metadata. Search combines lexical relevance and cosine similarity over a deterministic 128-dimensional SHA-256 feature hash. Reciprocal Rank Fusion merges rankings, then query-term coverage reranks the chunks. Each result includes a citation and individual scores. These vectors are not neural semantic embeddings, and the reranker is a transparent heuristic rather than a learned model.
+### 1. RAG knowledge base: traceable knowledge units
 
-The application depends on a provider interface. Demo uses a deterministic Mock; the code also defines HTTP adapters for DeepSeek, Ollama, and vLLM-compatible endpoints. Real provider calls have not been verified in the Demo run. The repository does not implement Function Calling or model fine-tuning.
+Ingestion separates file parsing, content organization, and retrieval. A SHA-256 content digest detects duplicate documents before format parsing and paragraph chunking. Document metadata and chunks are stored separately and joined by document ID and ordinal, giving answers a stable source reference.
 
-Report requests aggregate device and maintenance counts, reuse a matching completed task from the SQL database, and synchronously export Markdown. Redis is not used.
+```mermaid
+flowchart TB
+    Upload["PDF / DOCX / TXT / Markdown"] --> Digest["SHA-256 content digest"]
+    Digest --> Duplicate{"Document already exists?"}
+    Duplicate -->|Yes| Reject["409 duplicate response"]
+    Duplicate -->|No| Parse["Format and size checks / text extraction"]
+    Parse --> Chunk["Paragraph chunks / overlapping context"]
+    Chunk --> Document[("KnowledgeDocument metadata")]
+    Document --> Content[("KnowledgeChunk content and ordinal")]
+    Content --> Task["TaskRecord ingestion result"]
+    Content --> Retrieval["Read by hybrid retrieval"]
+```
+
+- **Content-based deduplication:** identical content is recognized even when filenames differ.
+- **Separate responsibilities:** parsers handle formats, the knowledge service handles persistence, and retrieval consumes a common chunk model.
+- **Source retention:** titles, filenames, document IDs, and ordinals connect ingestion, retrieval, and answer citations.
+
+Source: [Ingestion service](app/modules/knowledge/service.py) · [Parser and chunker](app/services/document_parser.py) · [Data models](app/db/models.py)
+
+### 2. Hybrid retrieval: two scoring paths and explainable fusion
+
+Queries and chunks share English-token and Chinese-bigram rules. The lexical path scores term frequency and inverse document frequency; the vector path computes cosine similarity over a deterministic 128-dimensional feature hash. Reciprocal Rank Fusion merges the rankings, then query-term coverage reranks results before Top-K selection.
+
+```mermaid
+flowchart TB
+    Query["User query"] --> Tokens["English tokens / Chinese bigrams"]
+    Store[("Knowledge chunks and metadata")] --> Lexical["Lexical relevance"]
+    Store --> Vector["Feature-hash vectors / cosine similarity"]
+    Tokens --> Lexical
+    Tokens --> Vector
+    Lexical --> Fusion["Reciprocal Rank Fusion"]
+    Vector --> Fusion
+    Fusion --> Rerank["Query-term coverage rerank"]
+    Rerank --> TopK["Top-K knowledge chunks"]
+    TopK --> Result["Citations + stage scores"]
+```
+
+- **Stable entry point:** `search()` owns candidate loading, scoring, ranking, fusion, and result assembly.
+- **Rank-based fusion:** each path contributes `1 / (60 + rank)`, avoiding direct addition of differently scaled raw scores.
+- **Explainable results:** `keyword_score`, `dense_score`, `fusion_score`, and `rerank_score` expose the contribution of each stage.
+
+The current implementation uses deterministic feature hashing and term-overlap reranking. Neural embeddings, Milvus, and a learned reranker are future integration directions.
+
+Source: [Hybrid retrieval](app/services/retrieval/local_hybrid.py) · [Search result schema](app/modules/knowledge/schemas.py)
+
+### 3. Intelligent analysis: grounded context and provider isolation
+
+The analysis API retrieves knowledge first, then passes the question, chunks, and citation markers to `LLMProvider.analyze()`. The router assembles the business flow and response model; providers own HTTP protocols, timeouts, and response parsing.
+
+```mermaid
+flowchart TB
+    Request["question / top_k"] --> Validate["QuestionRequest validation"]
+    Validate --> Search["search_knowledge"]
+    Search --> Context["Knowledge chunks + citation markers"]
+    Context --> Provider["LLMProvider.analyze"]
+    Provider --> Reference["Reference-response provider"]
+    Provider --> HTTP["OpenAI-compatible HTTP adapter"]
+    HTTP --> Parse["JSON parsing / required-field checks"]
+    HTTP -. Request or parsing failure .-> Error["Normalized error / request_id"]
+    Parse -. Missing fields .-> Error
+    Parse --> Answer["QuestionAnswer model"]
+    Reference --> Answer
+    Context -. Source retention .-> Answer
+    Answer --> Output["Answer / risk / recommendations / citations / provider"]
+```
+
+- **Context grounding:** the HTTP provider prompt requests answers based on supplied context, while the API retains citations for human review.
+- **Bounded calls:** the HTTP adapter encapsulates a 30-second timeout and translates request, JSON, and required-field failures into business errors.
+- **Consistent output:** clients consume the fixed `QuestionAnswer` fields rather than provider-specific response envelopes.
+
+Source: [Analysis router](app/modules/analysis/router.py) · [Provider implementations](app/services/llm/providers.py) · [Response schema](app/modules/analysis/schemas.py)
+
+### 4. Intelligent reports: aggregation, reuse, and result tracking
+
+The report service accepts a type, date range, and format. It first looks up a successful result using a request digest. On a miss, it aggregates device and maintenance records, renders Markdown, and persists the result. Clients use the task ID to retrieve and download the report.
+
+```mermaid
+flowchart TB
+    Request["Type / date range / format"] --> Key["Date validation / request digest"]
+    Key --> Match{"Matching successful result?"}
+    Match -->|Yes| Reuse["Existing task_id / reused=true"]
+    Match -->|No| Aggregate["SQL device and maintenance aggregation"]
+    Data[("Device / MaintenanceRecord")] --> Aggregate
+    Aggregate --> Statistics["ReportStatistics model"]
+    Statistics --> Render["Markdown template"]
+    Render --> Task[("TaskRecord content and statistics")]
+    Task --> Summary["Task ID / status / timestamps"]
+    Reuse --> Result["Result lookup / Markdown download"]
+    Summary --> Result
+```
+
+- **Explicit statistics:** device status reflects the current inventory; maintenance events use a UTC half-open interval that includes the entire end date.
+- **Result reuse:** the same type, date range, and format can reuse a completed SQL task, indicated by `reused`.
+- **Traceable artifacts:** content, statistics, generation time, and task status are persisted together; exports contain aggregate values rather than asset identifiers.
+
+Reports currently use structured statistics and templates and finish synchronously within the request. The [business design reading guide](docs/business-design.md) explains call order and implementation boundaries.
+
+Source: [Report service](app/modules/reports/service.py) · [Report API](app/modules/reports/router.py) · [Report schemas](app/modules/reports/schemas.py)
+
+## Current publication scope
 
 | Verified Demo path | Not implemented or not locally verified |
 | --- | --- |

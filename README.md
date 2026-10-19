@@ -53,21 +53,112 @@ flowchart LR
 
 [数据处理与问答流程](docs/flows.md)和[模块边界](docs/modules.md)均对应公开源码。
 
-## 关键设计
+## 关键业务设计
 
-### 1. 可追溯的混合检索
+### 1. RAG 知识库：从文档到可追溯知识单元
 
-文档上传后完成格式解析、按段落分块和元数据持久化。查询同时计算关键词相关度与基于 SHA-256 特征散列的本地向量相似度，使用 Reciprocal Rank Fusion 合并候选，再通过查询词覆盖度重排。每条结果返回文档、分块和评分信息，问答结果保留引用来源。这里的向量不是模型生成的语义 Embedding，重排也不是学习式 Reranker。
+知识库把文件解析、内容组织和检索使用拆成独立步骤。上传内容先计算 SHA-256 摘要识别重复文档，再完成格式解析与按段落分块；文档元数据和知识分块分别存储，通过 `document_id` 与分块序号关联，使后续答案能够定位到具体资料。
 
-### 2. 与业务解耦的模型接入
+```mermaid
+flowchart TB
+    Upload["PDF / DOCX / TXT / Markdown"] --> Digest["SHA-256 内容摘要"]
+    Digest --> Duplicate{"文档是否已存在？"}
+    Duplicate -->|是| Reject["409 重复文档响应"]
+    Duplicate -->|否| Parse["格式与大小校验 / 文本提取"]
+    Parse --> Chunk["段落分块 / 重叠上下文"]
+    Chunk --> Document[("KnowledgeDocument 文档元数据")]
+    Document --> Content[("KnowledgeChunk 内容与序号")]
+    Content --> Task["TaskRecord 记录导入结果"]
+    Content --> Retrieval["供混合检索读取"]
+```
 
-业务层只依赖统一 Provider 接口。Demo 使用确定性 Mock 返回结构化结果；源码另有 DeepSeek、Ollama 和 vLLM 的 OpenAI 兼容 HTTP 适配，凭据从环境变量读取。真实模型调用未在本次 Demo 验收中验证；仓库没有 Function Calling 或模型微调实现。
+- **内容去重**：按文件内容摘要判断重复，不依赖文件名，避免同一资料反复入库。
+- **职责分离**：解析器处理文件格式，知识服务负责持久化，检索模块只读取统一的分块模型。
+- **来源保留**：标题、文件名、文档 ID 与分块序号贯穿入库、检索和答案引用。
 
-### 3. 可复用的报告任务
+源码入口：[知识入库服务](app/modules/knowledge/service.py) · [文档解析与分块](app/services/document_parser.py) · [数据模型](app/db/models.py)
 
-报告服务按统计周期聚合设备状态、事件类型和风险等级，以请求摘要在 SQL 任务表中查找并复用已完成结果。公开报告只输出汇总指标，不枚举资产编号或敏感明细。报告当前同步生成并导出 Markdown。
+### 2. 混合检索：双路评分、排名融合与可解释重排
 
-### 4. 可验证范围
+查询和知识分块使用统一词元规则处理英文词语与中文双字片段。关键词分支计算词频与逆文档频率相关度，向量分支计算 128 维确定性特征散列的余弦相似度；两路排序经 RRF 融合后，再结合查询词覆盖度进行重排，输出 Top-K 分块及各阶段评分。
+
+```mermaid
+flowchart TB
+    Query["用户查询"] --> Tokens["英文词元 / 中文双字切分"]
+    Store[("知识分块与文档元数据")] --> Lexical["关键词相关度评分"]
+    Store --> Vector["特征散列向量 / 余弦相似度"]
+    Tokens --> Lexical
+    Tokens --> Vector
+    Lexical --> Fusion["RRF 排名融合"]
+    Vector --> Fusion
+    Fusion --> Rerank["查询词覆盖度重排"]
+    Rerank --> TopK["Top-K 知识分块"]
+    TopK --> Result["引用位置 + 分阶段评分"]
+```
+
+- **统一评分入口**：同一个 `search()` 负责候选读取、双路排序、融合和返回，接口对业务层保持稳定。
+- **排名融合**：使用 `1 / (60 + rank)` 累加两路排名贡献，融合依据是名次，而非直接相加不同尺度的原始分数。
+- **结果可解释**：返回 `keyword_score`、`dense_score`、`fusion_score` 和 `rerank_score`，便于说明每个阶段如何影响排序。
+
+这里采用确定性特征散列向量与词项重排；语义 Embedding、Milvus 和学习式 Reranker 属于后续适配方向。
+
+源码入口：[混合检索实现](app/services/retrieval/local_hybrid.py) · [检索结果模型](app/modules/knowledge/schemas.py)
+
+### 3. 智能分析：知识约束、Provider 隔离与结构化响应
+
+分析接口先检索相关知识，再把问题、分块内容和引用标记交给统一的 `LLMProvider.analyze()`。业务路由负责组织流程与返回格式，Provider 负责模型协议、超时和响应解析，使模型接入细节与运维业务保持分离。
+
+```mermaid
+flowchart TB
+    Request["question / top_k"] --> Validate["QuestionRequest 参数校验"]
+    Validate --> Search["search_knowledge 检索相关资料"]
+    Search --> Context["知识分块 + 引用标记"]
+    Context --> Provider["LLMProvider.analyze"]
+    Provider --> Reference["参考响应 Provider"]
+    Provider --> HTTP["OpenAI 兼容 HTTP 适配"]
+    HTTP --> Parse["JSON 解析 / 必需字段检查"]
+    HTTP -. 请求或解析失败 .-> Error["统一错误响应 / request_id"]
+    Parse -. 字段缺失 .-> Error
+    Parse --> Answer["QuestionAnswer 结构化结果"]
+    Reference --> Answer
+    Context -. 保留来源 .-> Answer
+    Answer --> Output["回答 / 风险等级 / 建议 / 引用 / Provider"]
+```
+
+- **知识约束**：HTTP Provider 的提示要求基于给定上下文组织回答，接口同时保留引用供人工核对。
+- **调用边界**：OpenAI 兼容适配封装请求格式与 30 秒超时；HTTP、JSON 解析和必需字段异常转换为明确的业务错误。
+- **统一结果**：对外使用 `QuestionAnswer`，调用方按固定字段展示答案、建议与出处。
+
+源码入口：[分析路由](app/modules/analysis/router.py) · [Provider 实现](app/services/llm/providers.py) · [响应模型](app/modules/analysis/schemas.py)
+
+### 4. 智能报告：统计口径、结果复用与任务追踪
+
+报告服务接收报告类型、起止日期和格式，先用请求摘要查找可复用的已完成结果；未命中时，从设备与运维记录聚合状态、事件类型和严重级别，再渲染 Markdown 并持久化结果。客户端通过任务 ID 查询和下载报告。
+
+```mermaid
+flowchart TB
+    Request["报告类型 / 起止日期 / 格式"] --> Key["日期校验 / 请求摘要"]
+    Key --> Match{"存在相同请求的成功结果？"}
+    Match -->|是| Reuse["返回原 task_id / reused=true"]
+    Match -->|否| Aggregate["设备状态与运维事件 SQL 聚合"]
+    Data[("Device / MaintenanceRecord")] --> Aggregate
+    Aggregate --> Statistics["ReportStatistics 统一统计模型"]
+    Statistics --> Render["Markdown 模板渲染"]
+    Render --> Task[("TaskRecord 保存内容与统计")]
+    Task --> Summary["任务 ID / 状态 / 时间信息"]
+    Reuse --> Result["结果查询 / Markdown 下载"]
+    Summary --> Result
+```
+
+- **明确统计口径**：设备状态反映当前台账，运维事件使用 UTC 半开时间区间筛选，包含结束日期当天的全部记录。
+- **减少重复计算**：同类型、周期和格式的请求可复用 SQL 中已保存的成功结果，并通过 `reused` 标识返回。
+- **结果可追踪**：报告内容、统计、生成时间和任务状态一并保存；导出只包含汇总数据，不枚举资产编号。
+
+当前报告由结构化统计与模板生成，并在请求内同步完成。更多调用顺序、统计边界与讲解路线见[业务设计与源码导读](docs/business-design.md)。
+
+源码入口：[报告服务](app/modules/reports/service.py) · [报告 API](app/modules/reports/router.py) · [统计与任务模型](app/modules/reports/schemas.py)
+
+## 当前公开范围
 
 | 当前代码可验证 | 尚未实现或未完成本机验收 |
 | --- | --- |
