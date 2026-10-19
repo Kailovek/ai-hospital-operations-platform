@@ -14,6 +14,8 @@
 
 ---
 
+> 本仓库中的公开代码、架构设计与技术文档由 **Hzhikai** 基于本人实际项目经验独立整理并授权发布，用于 LLM 应用开发交流、开源共同学习与求职作品展示。欢迎阅读、引用、讨论和改进，并请保留作者与[许可证](LICENSE)信息。
+
 ## 项目定位
 
 本项目将医疗设备台账、运维记录、知识文档和 AI 分析组织成可运行的后端服务，重点展示数据治理、检索增强生成、结构化 LLM 接入、任务化报告和工程测试能力。
@@ -49,7 +51,7 @@ flowchart LR
     Report --> Markdown[Markdown Artifact]
 ```
 
-默认 Demo 模式采用 SQLite、本地混合检索与确定性 Mock Provider，不依赖 API Key、GPU、Docker 或模型下载。[数据处理与问答流程](docs/flows.md)和[模块边界](docs/modules.md)均对应公开源码。
+[数据处理与问答流程](docs/flows.md)和[模块边界](docs/modules.md)均对应公开源码。
 
 ## 关键设计
 
@@ -75,7 +77,7 @@ flowchart LR
 
 ## 快速开始（Windows Demo）
 
-要求 Python 3.12，以下步骤不会下载模型权重：
+要求 Python 3.12：
 
 ```powershell
 git clone https://github.com/Kailovek/ai-hospital-operations-platform.git

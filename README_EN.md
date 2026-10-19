@@ -14,6 +14,8 @@
 
 ---
 
+> The public code, architecture designs, and technical documentation in this repository were independently organized and authorized for publication by **Hzhikai**, based on personal hands-on project experience. They are shared for LLM application development discussions, collaborative open-source learning, and portfolio presentation. Reading, citation, discussion, and improvements are welcome. Please retain the author attribution and [license](LICENSE) information.
+
 ## Overview
 
 This runnable backend connects equipment inventory, maintenance events, knowledge documents, grounded AI analysis, and aggregate reporting. It demonstrates data governance, retrieval-augmented generation, structured provider integration, task-oriented reporting, and automated verification.
@@ -49,7 +51,7 @@ flowchart LR
     Reports --> Markdown[Markdown artifact]
 ```
 
-Demo mode uses SQLite, local hybrid retrieval, and a deterministic Mock provider. It needs no API key, GPU, Docker, or model download. [Module boundaries](docs/modules.md) and [data flows](docs/flows.md) correspond to the published code.
+[Module boundaries](docs/modules.md) and [data flows](docs/flows.md) correspond to the published code.
 
 ## Design details
 
@@ -67,7 +69,7 @@ Optional packages and reserved environment variables do not imply working adapte
 
 ## Windows Demo
 
-Python 3.12 is required. These commands do not download model weights:
+Python 3.12 is required:
 
 ```powershell
 git clone https://github.com/Kailovek/ai-hospital-operations-platform.git
