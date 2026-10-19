@@ -1,18 +1,24 @@
-# Publication Scope
+# 公开内容与授权说明
 
-## Included
+本仓库中的公开代码、架构设计与技术文档由 **Hzhikai** 基于本人实际项目经验独立整理并授权发布，用于 LLM 应用开发交流、开源共同学习与求职作品展示。
 
-- Independently implemented FastAPI service and SQLAlchemy data model.
-- Synthetic-data generator and generic import/cleaning pipeline.
-- Platform-neutral document parsing, local deterministic hybrid retrieval, heuristic reranking, and citations.
-- Mock LLM provider and OpenAI-compatible provider interfaces.
-- Operations report aggregation, Markdown export, tests, and Windows scripts.
+## 公开工程内容
 
-## Excluded
+| 技术方向 | 公开内容 |
+| --- | --- |
+| 数据治理 | 设备与运维数据模型、字段标准化、批量导入、分页查询与统计 |
+| RAG 知识库 | 多格式文档解析、段落分块、元数据管理与引用关联 |
+| 混合检索 | 关键词评分、特征散列向量、RRF 融合与词项覆盖度重排 |
+| 智能分析 | 统一 Provider 接口、OpenAI 兼容 HTTP 适配、结构化问答结果 |
+| 报告服务 | 周期统计、报告结果复用、任务记录与 Markdown 导出 |
+| 工程组织 | 配置示例、运行脚本、示例输入、测试源码与架构文档 |
 
-- Employer or customer source code, data, documents, prompts, endpoints, and business rules.
-- Patient data or any personally identifiable medical information.
-- API keys, database credentials, model weights, adapters, checkpoints, and training outputs.
-- Claims that the Demo implementation is a certified clinical decision system.
+## 阅读与使用
 
-Demo data and the committed examples are synthetic. User-supplied knowledge documents remain local and are never part of this repository. Redis, Milvus, Function Calling, and LoRA training are not implemented here; the HTTP provider adapters exist but real provider calls have not been locally verified.
+业务流程和源码入口见 [README](README.md)、[模块说明](docs/modules.md)与[业务设计导读](docs/business-design.md)。运行配置通过环境变量管理，配置项见 `.env.example`。
+
+## 作者与许可证
+
+Hzhikai 创作并发布的代码与文档采用 [MIT License](LICENSE)。第三方依赖遵循各自的上游许可证，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+欢迎阅读、引用、讨论和改进，并请保留作者与许可证信息。

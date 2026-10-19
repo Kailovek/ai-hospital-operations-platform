@@ -1,6 +1,6 @@
 # Architecture
 
-## Demo runtime
+## Runtime architecture
 
 ```mermaid
 flowchart LR
@@ -10,11 +10,11 @@ flowchart LR
     API --> LLM[LLM provider interface]
     Domain --> SQL[(SQLite via SQLAlchemy)]
     RAG --> SQL
-    LLM --> Mock[Deterministic Mock provider]
+    LLM --> Provider[Provider implementations]
     Domain --> Export[Markdown report]
 ```
 
-Demo mode keeps the complete application workflow local: SQLite provides persistence, a deterministic hashed vector plus keyword score implements hybrid retrieval, reciprocal-rank fusion combines candidates, token overlap reranks results, and the Mock provider returns structured grounded answers. It needs no model weights, GPU, API key, Redis, or Milvus.
+The application separates HTTP routing, domain services, persistence, retrieval, and model-provider protocols. SQLAlchemy stores equipment, maintenance, document, and task records. Retrieval combines feature-hash vectors, keyword scoring, RRF, and term-overlap reranking; analysis assembles the resulting context and citations into a structured response.
 
 ## Model provider boundary
 
@@ -23,13 +23,14 @@ flowchart TB
     API[Analysis router] --> Search[Local knowledge search]
     Search --> SQL[(SQLite knowledge chunks)]
     API --> Provider{LLM Provider interface}
-    Provider --> Mock[Mock / verified Demo]
-    Provider -. HTTP adapter, unverified .-> DeepSeek[DeepSeek-compatible API]
-    Provider -. HTTP adapter, unverified .-> Ollama[Ollama-compatible API]
-    Provider -. HTTP adapter, unverified .-> vLLM[vLLM-compatible API]
+    Provider --> Reference[Reference-response implementation]
+    Provider --> HTTP[OpenAI-compatible HTTP adapter]
+    HTTP --> DeepSeek[DeepSeek-compatible API]
+    HTTP --> Ollama[Ollama-compatible API]
+    HTTP --> vLLM[vLLM-compatible API]
 ```
 
-There are no Redis or Milvus runtime adapters. MySQL is a SQLAlchemy configuration possibility with an optional driver, not a verified deployment path. The fine-tuning service is an independent portfolio repository; this application does not call it.
+`build_provider()` centralizes provider selection. The analysis service calls the same `analyze(question, contexts)` interface, while the HTTP adapter encapsulates endpoint formats, request timeouts, JSON parsing, and required-field checks.
 
 ## Knowledge workflow
 
@@ -56,7 +57,7 @@ sequenceDiagram
 ## Design decisions
 
 - API-first: stable `/api/v1` resources and generated Swagger documentation.
-- Provider isolation: business code does not read API keys or call a vendor SDK directly.
-- Health reports SQLite readiness, `cache: disabled`, and `vector_store: local` in Demo. These values do not imply Redis or Milvus availability.
+- Provider isolation: model protocols and credentials belong to the provider layer; business code calls a common interface.
+- Health reporting: the endpoint exposes database readiness, runtime mode, retrieval mode, and dependency status.
 - Input bounds: document/import content is checked against 15/10 MB limits after reading; page size and import error details are bounded. Chunking follows paragraph boundaries, so a very long paragraph can exceed the target chunk size.
 - Privacy by construction: generated reports aggregate records and do not enumerate device identifiers.

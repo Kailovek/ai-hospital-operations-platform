@@ -1,11 +1,11 @@
-# Demo equipment maintenance guide
+# Equipment maintenance knowledge example
 
-This document is an independently written example for testing document ingestion and search. It contains no hospital procedures or real device specifications.
+This independently written example illustrates document ingestion and search using general equipment-maintenance topics.
 
 ## Infusion device alarms
 
-For a demonstration occlusion alert, inspect the tubing path and visible clamp position. Record the observation before creating a maintenance event.
+The occlusion-alert example associates tubing-path and clamp-position observations with a maintenance event.
 
 ## Patient monitor communication
 
-For a demonstration connection alert, confirm the visible cable connection and power state. Escalate unresolved alerts for qualified review; this text is not a clinical instruction.
+The connection-alert example links cable and power-state observations to an operations record and subsequent review.

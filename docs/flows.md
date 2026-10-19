@@ -28,7 +28,7 @@ flowchart LR
     Overlap --> Citation[ranked chunks and citations]
 ```
 
-The vector branch is a lightweight deterministic retrieval feature, not neural embeddings. The rerank stage is a transparent heuristic, not a learned model.
+The vector branch uses deterministic feature hashing and cosine similarity. Query-term coverage provides a transparent reranking signal, and returned stage scores explain the final ordering.
 
 ## Question answering and reports
 
@@ -36,9 +36,9 @@ The vector branch is a lightweight deterministic retrieval feature, not neural e
 flowchart TD
     Q[Question request] --> Search[Knowledge search]
     Search --> Provider[LLM Provider interface]
-    Provider --> Mock[Mock Demo response]
+    Provider --> Reference[Reference response]
     Provider -. Optional configuration .-> HTTP[OpenAI-compatible HTTP]
-    Mock --> Answer[Answer + risk + recommendations + citations]
+    Reference --> Answer[Answer + risk + recommendations + citations]
     HTTP --> Answer
     R[Report request] --> Reuse{Matching completed task?}
     Reuse -->|Yes| Existing[Return existing task ID]

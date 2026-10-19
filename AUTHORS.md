@@ -1,5 +1,7 @@
 # Authors
 
-- **Hzhikai** — architecture, backend implementation, tests, documentation, and Demo workflow.
+- **Hzhikai** — architecture, backend implementation, business workflows, tests, and technical documentation.
 
-This repository is an independent, public reconstruction based on relevant internship experience. It does not contain an employer's original source code, private datasets, credentials, or internal service definitions.
+The public code, architecture designs, and technical documentation were independently organized and authorized for publication by Hzhikai based on personal project experience. They are shared for LLM application development discussions, collaborative open-source learning, and portfolio presentation.
+
+Please retain the author attribution and [MIT License](LICENSE) information when referencing or adapting this work. Third-party dependencies retain their upstream attribution and licenses.

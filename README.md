@@ -20,7 +20,7 @@
 
 本项目将医疗设备台账、运维记录、知识文档和 AI 分析组织成可运行的后端服务，重点展示数据治理、检索增强生成、结构化 LLM 接入、任务化报告和工程测试能力。
 
-仓库是基于实际实习场景重新设计并独立实现的公开工程，不包含企业原始源码、真实医院或患者数据、内部接口、访问凭据及模型资产，也不构成医疗诊断系统。
+仓库由 Hzhikai 基于实际项目经验独立整理，围绕数据治理、知识组织、检索分析和报告服务呈现完整的应用工程设计。
 
 ## 当前能力
 
@@ -31,7 +31,7 @@
 | 批量导入 | CSV、JSON、XLSX 解析，字段标准化、去重、更新与错误汇总 |
 | RAG 知识库 | PDF、DOCX、TXT、Markdown 解析、按段落分块、元数据持久化 |
 | 混合检索 | 关键词评分、确定性特征散列向量、RRF 融合、词项重排与引用溯源 |
-| 智能分析 | Demo Mock 问答、OpenAI 兼容 Provider 接口、结构化风险建议 |
+| 智能分析 | 检索增强问答接口、OpenAI 兼容 Provider、结构化风险建议 |
 | 智能报告 | 周报、月报、自定义周期统计、SQL 任务结果复用、Markdown 导出 |
 | 工程保障 | 配置校验、统一错误格式、请求 ID、输入边界、自动化测试 |
 
@@ -46,8 +46,9 @@ flowchart LR
     API --> Report[报告聚合与导出]
     Ops --> DB[(SQLite / SQLAlchemy)]
     KB --> DB
-    AI --> Mock[Mock Provider]
-    AI -. 可选且未验收 .-> Remote[OpenAI 兼容服务]
+    AI --> Provider[统一 Provider 接口]
+    Provider --> Remote[OpenAI 兼容 HTTP 适配]
+    Provider --> Answer[结构化问答结果]
     Report --> Markdown[Markdown Artifact]
 ```
 
@@ -100,7 +101,7 @@ flowchart TB
 - **排名融合**：使用 `1 / (60 + rank)` 累加两路排名贡献，融合依据是名次，而非直接相加不同尺度的原始分数。
 - **结果可解释**：返回 `keyword_score`、`dense_score`、`fusion_score` 和 `rerank_score`，便于说明每个阶段如何影响排序。
 
-这里采用确定性特征散列向量与词项重排；语义 Embedding、Milvus 和学习式 Reranker 属于后续适配方向。
+检索模块采用确定性特征散列向量与词项重排，评分过程与引用来源均可沿源码追溯。
 
 源码入口：[混合检索实现](app/services/retrieval/local_hybrid.py) · [检索结果模型](app/modules/knowledge/schemas.py)
 
@@ -158,15 +159,16 @@ flowchart TB
 
 源码入口：[报告服务](app/modules/reports/service.py) · [报告 API](app/modules/reports/router.py) · [统计与任务模型](app/modules/reports/schemas.py)
 
-## 当前公开范围
+## 代码导航
 
-| 当前代码可验证 | 尚未实现或未完成本机验收 |
-| --- | --- |
-| SQLite 数据治理、确定性本地检索、规则重排、Mock 问答、Markdown 报告 | Milvus 向量库、Redis 缓存、Function Calling、真实模型调用、MySQL 部署、LoRA 训练 |
+| 阅读主题 | 核心目录 | 关注内容 |
+| --- | --- | --- |
+| 数据治理 | `app/modules/devices/`、`maintenance/`、`imports/` | 模型约束、清洗导入、查询与聚合 |
+| 知识与检索 | `app/modules/knowledge/`、`app/services/retrieval/` | 文档组织、评分融合、引用溯源 |
+| 智能分析 | `app/modules/analysis/`、`app/services/llm/` | 上下文组织、Provider 边界、结构化结果 |
+| 智能报告 | `app/modules/reports/` | 统计口径、任务结果复用、内容导出 |
 
-`pyproject.toml` 中的可选依赖和 `.env.example` 中的预留字段不代表相关适配器已经实现。
-
-## 快速开始（Windows Demo）
+## 快速开始（Windows）
 
 要求 Python 3.12：
 
@@ -182,13 +184,13 @@ cd ai-hospital-operations-platform
 - OpenAPI JSON：`http://127.0.0.1:8101/openapi.json`
 - 停止服务：`.\stop.ps1`
 
-导入仓库自带的纯合成示例：
+导入仓库自带的设备台账示例：
 
 ```powershell
 curl.exe -X POST "http://127.0.0.1:8101/api/v1/imports/devices" -F "file=@examples/devices.csv"
 ```
 
-生成可配置规模的演示台账：
+按指定规模生成本地台账数据：
 
 ```powershell
 .\.venv\Scripts\python.exe .\scripts\generate_demo_data.py --count 1000 --output .\data\demo_devices.csv
@@ -205,8 +207,8 @@ app/
 ├── modules/       # 设备、运维、导入、知识库、分析、报告
 └── services/      # 文档解析、检索与 LLM Provider
 docs/              # 架构、模块、数据流程与 API
-examples/          # 纯合成设备台账及演示文档
-scripts/           # 合成数据工具
+examples/          # 设备台账与知识文档示例
+scripts/           # 数据生成工具
 tests/             # 单元与 API 集成测试
 pyproject.toml      # 依赖与开发工具配置
 ```
@@ -222,4 +224,4 @@ pyproject.toml      # 依赖与开发工具配置
 - 本仓库原创代码以 [MIT License](LICENSE) 开放，用于学习、交流和二次开发。
 - 第三方依赖仍分别遵循其原始许可证。
 
-欢迎通过 Issue 讨论工程设计与改进建议；使用者需自行评估其适用性，本项目不提供临床诊断或生产医疗系统保证。
+欢迎通过 Issue 讨论工程设计与改进建议，共同交流 LLM 应用开发、RAG 检索与业务工作流设计。
