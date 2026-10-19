@@ -58,5 +58,5 @@ sequenceDiagram
 - API-first: stable `/api/v1` resources and generated Swagger documentation.
 - Provider isolation: business code does not read API keys or call a vendor SDK directly.
 - Health reports SQLite readiness, `cache: disabled`, and `vector_store: local` in Demo. These values do not imply Redis or Milvus availability.
-- Bounded inputs: upload size, page size, chunk size, and returned errors are limited.
+- Input bounds: document/import content is checked against 15/10 MB limits after reading; page size and import error details are bounded. Chunking follows paragraph boundaries, so a very long paragraph can exceed the target chunk size.
 - Privacy by construction: generated reports aggregate records and do not enumerate device identifiers.

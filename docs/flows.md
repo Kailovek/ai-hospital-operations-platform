@@ -40,8 +40,10 @@ flowchart TD
     Provider -. Optional configuration .-> HTTP[OpenAI-compatible HTTP]
     Mock --> Answer[Answer + risk + recommendations + citations]
     HTTP --> Answer
-    R[Report request] --> Stats[SQL aggregate counts]
-    Stats --> Reuse[Look up completed task by request hash]
-    Reuse --> Render[Markdown report]
-    Render --> Download[Report download]
+    R[Report request] --> Reuse{Matching completed task?}
+    Reuse -->|Yes| Existing[Return existing task ID]
+    Reuse -->|No| Stats[SQL aggregate counts]
+    Stats --> Render[Render Markdown and persist task]
+    Existing --> Download[Report lookup and download]
+    Render --> Download
 ```

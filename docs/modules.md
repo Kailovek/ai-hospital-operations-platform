@@ -6,7 +6,7 @@
 | `app/core/config.py` | Environment settings and Demo validation | Pydantic settings |
 | `app/core/errors.py` | Request IDs and normalized error responses | FastAPI |
 | `app/db/models.py` | Device, maintenance, document, chunk and task tables | SQLAlchemy |
-| `app/modules/devices/` | Device CRUD, filtering and statistics | Database session |
+| `app/modules/devices/` | Device creation, lookup, update, filtering and statistics | Database session |
 | `app/modules/maintenance/` | Operations records and summaries | Device and maintenance tables |
 | `app/modules/imports/` | CSV/JSON/XLSX import | Reader, normalization, devices table |
 | `app/modules/knowledge/` | Document ingestion and knowledge search | Parser, local hybrid retrieval, document tables |

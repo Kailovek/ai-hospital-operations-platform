@@ -24,7 +24,7 @@ It is an independent public reconstruction. It contains no employer source code,
 
 | Area | Implementation |
 | --- | --- |
-| Device governance | CRUD, pagination, filters, statistics, and unique asset codes |
+| Device governance | Create/read/update, pagination, filters, statistics, and unique asset codes |
 | Operations records | Inspection, maintenance, fault, repair, and severity summaries |
 | Batch import | CSV/JSON/XLSX parsing, normalization, deduplication, updates, and errors |
 | RAG knowledge base | PDF/DOCX/TXT/Markdown parsing, paragraph-aware chunking, and metadata persistence |
