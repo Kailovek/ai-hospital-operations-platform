@@ -1,0 +1,1 @@
+"""Grounded operations analysis module."""

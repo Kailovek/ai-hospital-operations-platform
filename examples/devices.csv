@@ -1,0 +1,4 @@
+asset_code,name,category,department,status
+DEMO-EXAMPLE-001,Infusion Device,therapy,demo-ward,active
+DEMO-EXAMPLE-002,Patient Monitor,monitoring,demo-ward,maintenance
+DEMO-EXAMPLE-003,Ultrasound Console,imaging,demo-lab,active

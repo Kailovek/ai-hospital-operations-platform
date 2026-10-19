@@ -1,0 +1,1 @@
+"""Structured data import module."""
